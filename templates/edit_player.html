@@ -1,0 +1,57 @@
+# -*- coding: utf-8 -*-
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Редактиране на състезател</title>
+    <meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        form { max-width: 500px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; }
+        label { display: block; margin-top: 15px; }
+        input { width: 100%; padding: 8px; margin-top: 5px; }
+        button { margin-top: 20px; padding: 10px 20px; background: #2196F3; color: white; border: none; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>Редактиране на състезател</h1>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    
+    <form method="POST">
+	    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <label>Име на състезателя:*</label>
+        <input type="text" name="name" value="{{ player[1] }}" required>
+        
+        <label>Възраст:*</label>
+        <input type="number" name="age" value="{{ player[2] }}" required min="6" max="99">
+        
+        <label>Телефон:*</label>
+        <input type="text" name="phone" value="{{ player[3] }}" required>
+        
+        <label>Имейл:</label>
+        <input type="email" name="email" value="{{ player[4] }}">
+        
+        <label>Име на родител:*</label>
+        <input type="text" name="parent_name" value="{{ player[5] }}" required>
+        
+        <label>Телефон на родител:*</label>
+        <input type="text" name="parent_phone" value="{{ player[6] }}" required>
+        
+        <label>Имейл на родител:</label>
+        <input type="email" name="parent_email" value="{{ player[7] }}">
+        
+        <button type="submit">Запази промените</button>
+    </form>
+    <a href="/" style="display: inline-block; margin-top: 20px;">Назад към списъка</a>
+</body>
+</html>
