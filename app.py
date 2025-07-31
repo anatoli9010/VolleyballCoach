@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 import os
 import sys
 from flask import request, jsonify
-from app import app,
+from app import app
 
 
 # 1. Първо зареждаме .env файла
