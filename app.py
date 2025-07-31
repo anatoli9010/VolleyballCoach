@@ -301,11 +301,21 @@ def payment(player_id):
     c = conn.cursor()
     c.execute("INSERT OR REPLACE INTO payments (player_id, month, year, paid) VALUES (?, ?, ?, ?)",
               (player_id, month, year, 1))
+
+    # Вземане на телефонен номер на състезателя
+    c.execute("SELECT name, phone FROM players WHERE id=?", (player_id,))
+    player = c.fetchone()
     conn.commit()
     conn.close()
-    
+
+    # Изпращане на SMS
+    if player and player[1]:
+        sms_message = f"Здравей, {player[0]}! Плащането за {month} {year} е прието успешно. Благодарим!"
+        send_sms_via_twilio(player[1], sms_message)
+
     flash('Плащането е маркирано като извършено.', 'success')
     return redirect(url_for('home'))
+
 
 # Основно стартиране на приложението
 if __name__ == '__main__':
