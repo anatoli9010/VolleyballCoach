@@ -19,9 +19,8 @@ from dotenv import load_dotenv
 import os
 import sys
 from flask import request, jsonify
-from app import app, check_payment_status
+from app import app,
 
-app = application
 
 # 1. Първо зареждаме .env файла
 load_dotenv()
