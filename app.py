@@ -21,6 +21,8 @@ import sys
 import json
 import urllib.error
 from flask import request, jsonify
+from check_payment import send_sms
+
 
 
 # 1. Първо зареждаме .env файла
