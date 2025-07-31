@@ -18,7 +18,8 @@ from wtforms.validators import DataRequired
 from dotenv import load_dotenv
 import os
 import sys
-import json import urllib.error
+import json
+import urllib.error
 from flask import request, jsonify
 
 
