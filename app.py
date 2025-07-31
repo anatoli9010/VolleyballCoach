@@ -1,11 +1,8 @@
-﻿# -*- coding: utf-8 -*-
-from flask import Flask, render_template, request, redirect, url_for, send_file, flash, jsonify
+# -*- coding: utf-8 -*-
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 import sqlite3
 import smtplib
 from email.mime.text import MIMEText
-from apscheduler.schedulers.background import BackgroundScheduler
-from openpyxl import Workbook
-from io import BytesIO
 from datetime import datetime
 import urllib.request
 import urllib.parse
@@ -19,26 +16,18 @@ from dotenv import load_dotenv
 import os
 import sys
 import json
-import urllib.error
-from flask import request, jsonify
-from check_payment import send_sms
 
-
-
-# 1. Първо зареждаме .env файла
+# Зареждане на .env файла
 load_dotenv()
 
-# 2. Дефинираме необходимите променливи
+# Проверка за критични .env променливи
 required_env_vars = [
     'EMAIL_USER', 'EMAIL_PASS',
     'TWILIO_SID', 'TWILIO_AUTH', 'TWILIO_FROM',
     'FLASK_SECRET_KEY'
 ]
 
-# 3. Проверяваме кои променливи липсват
 missing_vars = [var for var in required_env_vars if not os.getenv(var)]
-
-# 4. Обработка на липсващите променливи
 if missing_vars:
     print("\n❌ ГРЕШКА: Липсват критични конфигурационни променливи")
     print("Моля, създайте .env файл със следните променливи:")
@@ -58,27 +47,7 @@ if missing_vars:
     
     sys.exit(1)
 
-# Останалият код на приложението...
-
-
-# Проверка дали всички нужни .env променливи са зададени
-required_env_vars = [
-    'EMAIL_USER', 'EMAIL_PASS',
-    'TWILIO_SID', 'TWILIO_AUTH', 'TWILIO_FROM',
-    'FLASK_SECRET_KEY'
-]
-
-missing_vars = [var for var in required_env_vars if not os.getenv(var)]
-if missing_vars:
-    print(f"\n\u274C Липсват следните .env променливи: {', '.join(missing_vars)}\n")
-    sys.exit(1)
-
-class PlayerForm(FlaskForm):
-    name = StringField('Име на състезателя', validators=[DataRequired()])
-    age = IntegerField('Възраст', validators=[DataRequired()])
-    phone = StringField('Телефон', validators=[DataRequired()])
-    submit = SubmitField('Запази')
-
+# Flask приложение и CSRF защита
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY')
 csrf = CSRFProtect(app)
@@ -89,43 +58,14 @@ EMAIL_PORT = 587
 EMAIL_USER = os.getenv('EMAIL_USER')
 EMAIL_PASS = os.getenv('EMAIL_PASS')
 
-# Функция за изпращане на SMS чрез Twilio
+# WTForms форма за състезатели
+class PlayerForm(FlaskForm):
+    name = StringField('Име на състезателя', validators=[DataRequired()])
+    age = IntegerField('Възраст', validators=[DataRequired()])
+    phone = StringField('Телефон', validators=[DataRequired()])
+    submit = SubmitField('Запази')
 
-def send_sms_via_twilio(to_number, message_body):
-    TWILIO_ACCOUNT_SID = os.getenv('TWILIO_SID')
-    TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH')
-    TWILIO_FROM_NUMBER = os.getenv('TWILIO_FROM')
-
-    url = f'https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json'
-
-    data = urllib.parse.urlencode({
-        'From': from_number,
-        'To': to_number,
-        'Body': message_body
-    }).encode('utf-8')
-
-    credentials = f'{account_sid}:{auth_token}'
-    base64_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
-
-    request = urllib.request.Request(url, data)
-    request.add_header("Authorization", f"Basic {base64_credentials}")
-    request.add_header("Content-Type", "application/x-www-form-urlencoded")
-
-    context = ssl._create_unverified_context()
-
-    try:
-        response = urllib.request.urlopen(request, context=context)
-        result = response.read().decode('utf-8')
-        print("\u2705 SMS изпратен успешно: {}".format(result).encode('ascii', 'ignore').decode('ascii'))
-        return True
-    except Exception as e:
-        print("\u26a0\ufe0f Грешка при изпращане на SMS: {}".format(e).encode('ascii', 'ignore').decode('ascii'))
-        return False
-
-# Останалият код остава непроменен освен ако няма нужда от допълнителна защита
-
-
-# Инициализация на DB
+# Инициализация на базата данни
 def init_db():
     conn = sqlite3.connect('volleyball.db')
     c = conn.cursor()
@@ -145,6 +85,7 @@ def get_current_month():
     months = ["Януари", "Февруари", "Март", "Април", "Май", "Юни", 
               "Юли", "Август", "Септември", "Октомври", "Ноември", "Декември"]
     return months[datetime.now().month - 1]
+
 def get_payment_history(player_id):
     db = sqlite3.connect('volleyball.db')
     cursor = db.cursor()
@@ -152,7 +93,9 @@ def get_payment_history(player_id):
         "SELECT month, year FROM payments WHERE player_id = ? ORDER BY year DESC, month DESC",
         (player_id,)
     ).fetchall()
+    db.close()
     return result
+
 def check_payment_status(player_id, month, year):
     conn = sqlite3.connect('volleyball.db')
     c = conn.cursor()
@@ -175,43 +118,101 @@ def utility_processor():
 def inject_now():
     return {'now': datetime.now}
 
+# Функция за изпращане на SMS чрез Twilio API
+def send_sms_via_twilio(to_number, message_body):
+    TWILIO_ACCOUNT_SID = os.getenv('TWILIO_SID')
+    TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH')
+    TWILIO_FROM_NUMBER = os.getenv('TWILIO_FROM')
+
+    url = f'https://api.twilio.com/2010-04-01/Accounts/{TWILIO_ACCOUNT_SID}/Messages.json'
+
+    data = urllib.parse.urlencode({
+        'From': TWILIO_FROM_NUMBER,
+        'To': to_number,
+        'Body': message_body
+    }).encode('utf-8')
+
+    credentials = f'{TWILIO_ACCOUNT_SID}:{TWILIO_AUTH_TOKEN}'
+    base64_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
+
+    req = urllib.request.Request(url, data)
+    req.add_header("Authorization", f"Basic {base64_credentials}")
+    req.add_header("Content-Type", "application/x-www-form-urlencoded")
+
+    context = ssl._create_unverified_context()
+
+    try:
+        with urllib.request.urlopen(req, context=context) as response:
+            result = json.loads(response.read().decode('utf-8'))
+            print(f"✅ SMS изпратен успешно. SID: {result.get('sid')}")
+            return True
+    except urllib.error.HTTPError as e:
+        try:
+            error_content = e.read().decode('utf-8') if e.fp else ''
+            error_msg = json.loads(error_content).get('message', str(e)) if error_content else str(e)
+        except Exception:
+            error_msg = str(e)
+        print(f"⚠️ HTTP грешка при изпращане на SMS: {error_msg}")
+    except Exception as e:
+        print(f"⚠️ Неочаквана грешка при изпращане на SMS: {str(e)}")
+
+    return False
+
+# Функция за изпращане на имейл
+def send_email(to, subject, body):
+    try:
+        msg = MIMEText(body)
+        msg['Subject'] = subject
+        msg['From'] = EMAIL_USER
+        msg['To'] = to
+
+        server = smtplib.SMTP(EMAIL_HOST, EMAIL_PORT)
+        server.starttls()
+        server.login(EMAIL_USER, EMAIL_PASS)
+        server.send_message(msg)
+        server.quit()
+        print(f"✅ Имейл изпратен успешно до {to}")
+        return True
+    except Exception as e:
+        print(f"⚠️ Грешка при изпращане на имейл до {to}: {str(e)}")
+        return False
+
+# Главна страница с филтриране на състезатели и статус на плащанията
 @app.route('/')
 def home():
     name_filter = request.args.get('name', '').strip()
     age_filter = request.args.get('age', '').strip()
     status_filter = request.args.get('status', '').strip()
 
-    db = sqlite3.connect('volleyball.db')
-    cursor = db.cursor()
+    conn = sqlite3.connect('volleyball.db')
+    cursor = conn.cursor()
 
-    query = "SELECT * FROM players WHERE 1=1"
+    query = "SELECT * FROM players WHERE active=1"
     params = []
 
     if name_filter:
         query += " AND name LIKE ?"
-        params.append("%{}%".format(name_filter))
+        params.append(f"%{name_filter}%")
     if age_filter:
         query += " AND age = ?"
         params.append(age_filter)
 
     players = cursor.execute(query, params).fetchall()
 
-    # Статус на плащане (платил/неплатил)
-    current_month = datetime.now().strftime('%B')
+    current_month = get_current_month()
     current_year = datetime.now().year
 
     if status_filter in ['paid', 'unpaid']:
         filtered_players = []
         for p in players:
             paid = check_payment_status(p[0], current_month, current_year)
-            if status_filter == 'paid' and paid:
-                filtered_players.append(p)
-            elif status_filter == 'unpaid' and not paid:
+            if (status_filter == 'paid' and paid) or (status_filter == 'unpaid' and not paid):
                 filtered_players.append(p)
         players = filtered_players
 
-    # История на плащанията
     histories = {p[0]: get_payment_history(p[0]) for p in players}
+
+    conn.close()
 
     return render_template('index.html',
                            players=players,
@@ -219,7 +220,7 @@ def home():
                            current_month=current_month,
                            current_year=current_year)
 
-
+# Добавяне на нов състезател
 @app.route('/add_player', methods=['GET', 'POST'])
 def add_player():
     if request.method == 'POST':
@@ -245,10 +246,11 @@ def add_player():
             flash('Състезателят е добавен успешно!', 'success')
             return redirect(url_for('home'))
         except Exception as e:
-            flash('Грешка при добавяне: {0}'.format(str(e)), 'error')
+            flash(f'Грешка при добавяне: {str(e)}', 'error')
     
     return render_template('add_player.html')
 
+# Редактиране на състезател
 @app.route('/edit_player/<int:player_id>', methods=['GET', 'POST'])
 def edit_player(player_id):
     conn = sqlite3.connect('volleyball.db')
@@ -273,9 +275,11 @@ def edit_player(player_id):
                          WHERE id=?""", player_data)
             conn.commit()
             flash('Данните са обновени успешно!', 'success')
+            conn.close()
             return redirect(url_for('home'))
         except Exception as e:
-            flash('Грешка при обновяване: {0}'.format(str(e)), 'error')
+            flash(f'Грешка при обновяване: {str(e)}', 'error')
+            conn.close()
     
     c.execute("SELECT * FROM players WHERE id=?", (player_id,))
     player = c.fetchone()
@@ -287,179 +291,22 @@ def edit_player(player_id):
     
     return render_template('edit_player.html', player=player)
 
-@app.route('/delete_player/<int:player_id>')
-def delete_player(player_id):
-    try:
-        conn = sqlite3.connect('volleyball.db')
-        c = conn.cursor()
-        c.execute("UPDATE players SET active=0 WHERE id=?", (player_id,))
-        conn.commit()
-        conn.close()
-        flash('Състезателят е архивиран успешно!', 'success')
-    except Exception as e:
-        flash('Грешка при архивиране: {0}'.format(str(e)), 'error')
+# Обработка на плащане (примерно)
+@app.route('/payment/<int:player_id>', methods=['POST'])
+def payment(player_id):
+    month = request.form.get('month')
+    year = int(request.form.get('year', datetime.now().year))
     
+    conn = sqlite3.connect('volleyball.db')
+    c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO payments (player_id, month, year, paid) VALUES (?, ?, ?, ?)",
+              (player_id, month, year, 1))
+    conn.commit()
+    conn.close()
+    
+    flash('Плащането е маркирано като извършено.', 'success')
     return redirect(url_for('home'))
 
-@app.route('/send_reminder', methods=['POST'])
-def send_reminder():
-    data = request.json
-    phone = data['phone']
-    player_id = data['player_id']
-
-    conn = sqlite3.connect('volleyball.db')
-    c = conn.cursor()
-
-    try:
-        # Тук извикваш функцията за изпращане на SMS (примерно send_sms_via_twilio)
-        sms_result = send_sms_via_twilio(phone, "Напомняне за плащане на месечна такса")
-        print("SMS изпратен успешно:", sms_result)
-
-        # Имейл съобщение
-        msg = MIMEText("Напомняне за плащане на месечна такса")
-        msg['Subject'] = 'Волейболен клуб - напомняне'
-        msg['From'] = EMAIL_USER
-        msg['To'] = '{}@vivatel.bg'.format(phone)
-
-        # Имейл до родителя
-        c.execute("SELECT parent_email FROM players WHERE id=?", (player_id,))
-        row = c.fetchone()
-        parent_email = row[0] if row else None
-
-        if parent_email:
-            msg2 = MIMEText("Уважаеми родителю,\n\nНапомняме Ви за дължима месечна такса.\n\nПоздрави,\nВолейболен клуб")
-            msg2['Subject'] = 'Напомняне за месечна такса'
-            msg2['From'] = EMAIL_USER
-            msg2['To'] = parent_email
-        else:
-            msg2 = None
-
-        server = smtplib.SMTP(EMAIL_HOST, EMAIL_PORT)
-        server.starttls()
-        server.login(EMAIL_USER, EMAIL_PASS)
-        server.send_message(msg)
-        if msg2:
-            server.send_message(msg2)
-        server.quit()
-
-        return jsonify({'status': 'success'}), 200
-
-    except Exception as e:
-        print("Грешка при изпращане на напомняне:", e)
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-    finally:
-        conn.close()
-
-        # Създаване на заявка
-        req = urllib.request.Request(url, data)
-        req.add_header("Authorization", f"Basic {base64_credentials}")
-        req.add_header("Content-Type", "application/x-www-form-urlencoded")
-
-        # SSL контекст (по-безопасна версия)
-        context = ssl.create_default_context()
-
-        # Изпращане на заявка
-try:
-    with urllib.request.urlopen(req, context=context) as response:
-        result = json.loads(response.read().decode('utf-8'))
-        print(f"✅ SMS изпратен успешно. SID: {result.get('sid')}")
-        return True
-
-except urllib.error.HTTPError as e:
-    try:
-        error_content = e.read().decode('utf-8') if e.fp else ''
-        error_msg = json.loads(error_content).get('message', str(e)) if error_content else str(e)
-    except Exception:
-        error_msg = str(e)
-    print(f"⚠️ HTTP грешка при изпращане на SMS: {error_msg}")
-
-except Exception as e:
-    print(f"⚠️ Неочаквана грешка: {str(e)}")
-
-return False
-
-# Изпращане на потвърждение за платена такса (SMS + имейл до родител)
-def send_payment_confirmation(player_id, month, year):
-    conn = sqlite3.connect('volleyball.db')
-    c = conn.cursor()
-
-    # Изпращане на SMS
-    c.execute("SELECT parent_phone FROM players WHERE id=?", (player_id,))
-    phone = c.fetchone()[0]
-    message_body = f"Потвърждение за платена такса за {month} {year}"
-    send_sms_via_twilio(phone, message_body)
-
-    # Изпращане на имейл до родител
-    c.execute("SELECT parent_email FROM players WHERE id=?", (player_id,))
-    parent_email = c.fetchone()[0]
-
-    if parent_email:
-        try:
-            msg = MIMEText(f"Благодарим ви! Плащането за {month} {year} е прието успешно.")
-            msg['Subject'] = 'Потвърждение за плащане'
-            msg['From'] = EMAIL_USER
-            msg['To'] = parent_email
-
-            server = smtplib.SMTP(EMAIL_HOST, EMAIL_PORT)
-            server.starttls()
-            server.login(EMAIL_USER, EMAIL_PASS)
-            server.send_message(msg)
-            server.quit()
-        except Exception as e:
-            print("⚠️ Неуспешно изпращане на имейл до родител:", e)
-
-    conn.close()
-
-@app.route('/mark_payment', methods=['POST'])
-def mark_payment():
-    data = request.json
-    conn = sqlite3.connect('volleyball.db')
-    c = conn.cursor()
-
-    try:
-        c.execute("SELECT id FROM payments WHERE player_id=? AND month=? AND year=?",
-                  (data['player_id'], data['month'], data['year']))
-        payment = c.fetchone()
-
-        if payment:
-            c.execute("UPDATE payments SET paid=1 WHERE id=?", (payment[0],))
-        else:
-            c.execute("INSERT INTO payments (player_id, month, year, paid) VALUES (?, ?, ?, 1)",
-                      (data['player_id'], data['month'], data['year']))
-
-        conn.commit()
-
-        # Изпращане на SMS и имейл до родител
-        send_payment_confirmation(data['player_id'], data['month'], data['year'])
-
-        return jsonify({'status': 'success'})
-
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)})
-
-    finally:
-        conn.close()
-
-@app.route('/check_payment')
-def check_payment():
-    player_id = request.args.get('player_id')
-    month = request.args.get('month')
-    year = request.args.get('year')
-
-    if not player_id or not month or not year:
-        return jsonify({'error': 'Липсват параметри'}), 400
-
-    try:
-        paid = check_payment_status(int(player_id), month, int(year))
-        if paid:
-            return jsonify({'paid': True})
-        else:
-            return jsonify({'paid': False}), 404
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
+# Основно стартиране на приложението
 if __name__ == '__main__':
-    print("⏳ Стартиране на сървър...")
-    app.run(host='0.0.0.0', port=5000, debug=True)
-    print("🛑 Сървърът спря")
+    app.run(debug=True)
