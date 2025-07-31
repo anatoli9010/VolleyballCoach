@@ -358,18 +358,24 @@ def send_reminder():
         context = ssl.create_default_context()
 
         # Изпращане на заявка
-        with urllib.request.urlopen(req, context=context) as response:
-            result = json.loads(response.read().decode('utf-8'))
-            print(f"✅ SMS изпратен успешно. SID: {result.get('sid')}")
-            return True
-            
-    except urllib.error.HTTPError as e:
-        error_msg = json.loads(e.read().decode('utf-8')).get('message', str(e))
-        print(f"⚠️ HTTP грешка при изпращане на SMS: {error_msg}")
-    except Exception as e:
-        print(f"⚠️ Неочаквана грешка: {str(e)}")
-    
-    return False
+try:
+    with urllib.request.urlopen(req, context=context) as response:
+        result = json.loads(response.read().decode('utf-8'))
+        print(f"✅ SMS изпратен успешно. SID: {result.get('sid')}")
+        return True
+
+except urllib.error.HTTPError as e:
+    try:
+        error_content = e.read().decode('utf-8') if e.fp else ''
+        error_msg = json.loads(error_content).get('message', str(e)) if error_content else str(e)
+    except Exception:
+        error_msg = str(e)
+    print(f"⚠️ HTTP грешка при изпращане на SMS: {error_msg}")
+
+except Exception as e:
+    print(f"⚠️ Неочаквана грешка: {str(e)}")
+
+return False
 
 # Изпращане на потвърждение за платена такса (SMS + имейл до родител)
 def send_payment_confirmation(player_id, month, year):
