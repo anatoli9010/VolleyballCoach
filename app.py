@@ -151,8 +151,6 @@ def get_payment_history(player_id):
         (player_id,)
     ).fetchall()
     return result
-	
-
 def check_payment_status(player_id, month, year):
     conn = sqlite3.connect('volleyball.db')
     c = conn.cursor()
