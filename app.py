@@ -18,8 +18,8 @@ from wtforms.validators import DataRequired
 from dotenv import load_dotenv
 import os
 import sys
+import json import urllib.error
 from flask import request, jsonify
-from app import app
 
 
 # 1. Първо зареждаме .env файла
@@ -347,29 +347,6 @@ def send_reminder():
 
     finally:
         conn.close()
-
-def send_sms_via_twilio(to_number, message_body):
-    """Изпраща SMS чрез Twilio API"""
-    try:
-        account_sid = os.getenv('TWILIO_ACCOUNT_SID')
-        auth_token = os.getenv('TWILIO_AUTH_TOKEN')
-        from_number = os.getenv('TWILIO_FROM_NUMBER')
-        
-        if not all([account_sid, auth_token, from_number]):
-            raise ValueError("Липсват Twilio конфигурационни данни в .env файла")
-
-        # Подготвяне на заявката
-        url = f'https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json'
-        
-        data = urllib.parse.urlencode({
-            'From': from_number,
-            'To': to_number,
-            'Body': message_body
-        }).encode('utf-8')
-
-        # Автентикация
-        credentials = f'{account_sid}:{auth_token}'.encode('utf-8')
-        base64_credentials = base64.b64encode(credentials).decode('utf-8')
 
         # Създаване на заявка
         req = urllib.request.Request(url, data)
