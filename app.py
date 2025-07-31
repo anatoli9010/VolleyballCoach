@@ -18,6 +18,8 @@ from wtforms.validators import DataRequired
 from dotenv import load_dotenv
 import os
 import sys
+from flask import request, jsonify
+from app import app, check_payment_status
 
 # 1. Първо зареждаме .env файла
 load_dotenv()
@@ -453,6 +455,23 @@ def mark_payment():
 
     finally:
         conn.close()
+@app.route('/check_payment')
+def check_payment():
+    player_id = request.args.get('player_id')
+    month = request.args.get('month')
+    year = request.args.get('year')
+
+    if not player_id or not month or not year:
+        return jsonify({'error': 'Липсват параметри'}), 400
+
+    try:
+        paid = check_payment_status(int(player_id), month, int(year))
+        if paid:
+            return jsonify({'paid': True})
+        else:
+            return jsonify({'paid': False}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     print("⏳ Стартиране на сървър...")
