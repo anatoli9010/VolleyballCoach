@@ -19,8 +19,41 @@ from dotenv import load_dotenv
 import os
 import sys
 
-# Зареждане на променливи от .env файл
+# 1. Първо зареждаме .env файла
 load_dotenv()
+
+# 2. Дефинираме необходимите променливи
+required_env_vars = [
+    'EMAIL_USER', 'EMAIL_PASS',
+    'TWILIO_SID', 'TWILIO_AUTH', 'TWILIO_FROM',
+    'FLASK_SECRET_KEY'
+]
+
+# 3. Проверяваме кои променливи липсват
+missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+
+# 4. Обработка на липсващите променливи
+if missing_vars:
+    print("\n❌ ГРЕШКА: Липсват критични конфигурационни променливи")
+    print("Моля, създайте .env файл със следните променливи:")
+    for var in missing_vars:
+        print(f"- {var}")
+    
+    # Създаване на шаблонен .env файл ако не съществува
+    if not os.path.exists('.env'):
+        try:
+            with open('.env', 'w', encoding='utf-8') as f:
+                f.write("# Автоматично генериран .env файл\n")
+                for var in missing_vars:
+                    f.write(f"{var}=трябва_да_попълните_тук\n")
+            print("\n✔ Създаден е шаблонен .env файл. Моля, попълнете липсващите стойности!")
+        except Exception as e:
+            print(f"\n⚠ Неуспешно създаване на .env файл: {str(e)}")
+    
+    sys.exit(1)
+
+# Останалият код на приложението...
+
 
 # Проверка дали всички нужни .env променливи са зададени
 required_env_vars = [
@@ -314,37 +347,50 @@ def send_reminder():
     finally:
         conn.close()
 
-def# Функция за изпращане на SMS чрез Twilio
 def send_sms_via_twilio(to_number, message_body):
-    account_sid = os.getenv('TWILIO_SID')
-    auth_token = os.getenv('TWILIO_AUTH')
-    from_number = os.getenv('TWILIO_FROM')
-
-    url = f'https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json'
-
-    data = urllib.parse.urlencode({
-        'From': from_number,
-        'To': to_number,
-        'Body': message_body
-    }).encode('utf-8')
-
-    credentials = f'{account_sid}:{auth_token}'
-    base64_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
-
-    request = urllib.request.Request(url, data)
-    request.add_header("Authorization", f"Basic {base64_credentials}")
-    request.add_header("Content-Type", "application/x-www-form-urlencoded")
-
-    context = ssl._create_unverified_context()
-
+    """Изпраща SMS чрез Twilio API"""
     try:
-        response = urllib.request.urlopen(request, context=context)
-        result = response.read().decode('utf-8')
-        print("✅ SMS изпратен успешно: {}".format(result).encode('ascii', 'ignore').decode('ascii'))
-        return True
+        account_sid = os.getenv('TWILIO_ACCOUNT_SID')
+        auth_token = os.getenv('TWILIO_AUTH_TOKEN')
+        from_number = os.getenv('TWILIO_FROM_NUMBER')
+        
+        if not all([account_sid, auth_token, from_number]):
+            raise ValueError("Липсват Twilio конфигурационни данни в .env файла")
+
+        # Подготвяне на заявката
+        url = f'https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json'
+        
+        data = urllib.parse.urlencode({
+            'From': from_number,
+            'To': to_number,
+            'Body': message_body
+        }).encode('utf-8')
+
+        # Автентикация
+        credentials = f'{account_sid}:{auth_token}'.encode('utf-8')
+        base64_credentials = base64.b64encode(credentials).decode('utf-8')
+
+        # Създаване на заявка
+        req = urllib.request.Request(url, data)
+        req.add_header("Authorization", f"Basic {base64_credentials}")
+        req.add_header("Content-Type", "application/x-www-form-urlencoded")
+
+        # SSL контекст (по-безопасна версия)
+        context = ssl.create_default_context()
+
+        # Изпращане на заявка
+        with urllib.request.urlopen(req, context=context) as response:
+            result = json.loads(response.read().decode('utf-8'))
+            print(f"✅ SMS изпратен успешно. SID: {result.get('sid')}")
+            return True
+            
+    except urllib.error.HTTPError as e:
+        error_msg = json.loads(e.read().decode('utf-8')).get('message', str(e))
+        print(f"⚠️ HTTP грешка при изпращане на SMS: {error_msg}")
     except Exception as e:
-        print("⚠️ Грешка при изпращане на SMS: {}".format(e).encode('ascii', 'ignore').decode('ascii'))
-        return False
+        print(f"⚠️ Неочаквана грешка: {str(e)}")
+    
+    return False
 
 # Изпращане на потвърждение за платена такса (SMS + имейл до родител)
 def send_payment_confirmation(player_id, month, year):
@@ -407,3 +453,8 @@ def mark_payment():
 
     finally:
         conn.close()
+
+if __name__ == '__main__':
+    print("⏳ Стартиране на сървър...")
+    app.run(host='0.0.0.0', port=5000, debug=True)
+    print("🛑 Сървърът спря")
