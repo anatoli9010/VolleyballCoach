@@ -291,6 +291,56 @@ def edit_player(player_id):
     
     return render_template('edit_player.html', player=player)
 
+@app.route('/check_payment', methods=['GET'])
+def check_payment():
+    player_id = request.args.get('player_id')
+    month = request.args.get('month')
+    year = request.args.get('year')
+
+    if not player_id or not month or not year:
+        return jsonify({'error': 'Missing parameters'}), 400
+
+    conn = sqlite3.connect('volleyball.db')
+    c = conn.cursor()
+    c.execute("SELECT paid FROM payments WHERE player_id=? AND month=? AND year=?", 
+              (player_id, month, year))
+    result = c.fetchone()
+    conn.close()
+
+    return jsonify({'paid': bool(result and result[0])})
+
+@app.route('/mark_payment', methods=['POST'])
+def mark_payment():
+    data = request.get_json()
+    player_id = data.get('player_id')
+    month = data.get('month')
+    year = data.get('year')
+
+    if not player_id or not month or not year:
+        return jsonify({'error': 'Missing data'}), 400
+
+    conn = sqlite3.connect('volleyball.db')
+    c = conn.cursor()
+    c.execute("""INSERT OR REPLACE INTO payments 
+                 (player_id, month, year, paid) 
+                 VALUES (?, ?, ?, ?)""", (player_id, month, year, 1))
+    conn.commit()
+
+    c.execute("SELECT name, phone FROM players WHERE id = ?", (player_id,))
+    player = c.fetchone()
+    conn.close()
+
+    if not player:
+        return jsonify({'error': 'Играчът не е намерен'}), 404
+
+    name, phone = player
+    message = f"{name}, Вашата такса за {month} {year} е маркирана като платена. Благодарим ви!"
+
+    sms_sent = send_sms_via_twilio(phone, message)
+
+    return jsonify({'status': 'marked', 'sms_sent': sms_sent})
+
+
 # Обработка на плащане (примерно)
 @app.route('/payment/<int:player_id>', methods=['POST'])
 def payment(player_id):
