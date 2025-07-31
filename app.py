@@ -455,6 +455,7 @@ def mark_payment():
 
     finally:
         conn.close()
+
 @app.route('/check_payment')
 def check_payment():
     player_id = request.args.get('player_id')
