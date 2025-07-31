@@ -366,6 +366,62 @@ def payment(player_id):
     flash('Плащането е маркирано като извършено.', 'success')
     return redirect(url_for('home'))
 
+@app.route('/send_reminder', methods=['POST'])
+def send_reminder():
+    data = request.get_json()
+    player_id = data.get('player_id')
+
+    if not player_id:
+        return jsonify({'error': 'Missing player_id'}), 400
+
+    conn = sqlite3.connect('volleyball.db')
+    c = conn.cursor()
+    c.execute("SELECT name, phone FROM players WHERE id = ?", (player_id,))
+    player = c.fetchone()
+    conn.close()
+
+    if not player:
+        return jsonify({'error': 'Player not found'}), 404
+
+    name, phone = player
+    phone = normalize_phone(phone)
+
+    message = f"{name}, напомняме Ви да платите месечната си такса. Благодарим Ви!"
+    sms_sent = send_sms_via_twilio(phone, message)
+
+    return jsonify({'reminder_sent': sms_sent})
+
+@app.route('/trigger_reminders', methods=['POST'])
+def trigger_reminders():
+    month = datetime.now().month
+    year = datetime.now().year
+
+    conn = sqlite3.connect('volleyball.db')
+    c = conn.cursor()
+    c.execute("""
+        SELECT p.id, p.name, p.phone FROM players p
+        LEFT JOIN payments pay ON p.id = pay.player_id 
+        AND pay.month = ? AND pay.year = ?
+        WHERE pay.paid IS NULL OR pay.paid = 0
+    """, (month, year))
+    players = c.fetchall()
+    conn.close()
+
+    reminders_sent = []
+    for pid, name, phone in players:
+        phone = normalize_phone(phone)
+        message = f"{name}, напомняме Ви да платите таксата за {month}/{year}. Благодарим Ви!"
+        success = send_sms_via_twilio(phone, message)
+        reminders_sent.append({'player_id': pid, 'success': success})
+
+    return jsonify({'reminders': reminders_sent})
+
+def normalize_phone(phone):
+    # Преобразува български номера от 0878... към +359878...
+    if phone.startswith('0'):
+        return '+359' + phone[1:]
+    return phone
+
 
 # Основно стартиране на приложението
 if __name__ == '__main__':
