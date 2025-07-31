@@ -86,9 +86,9 @@ EMAIL_PASS = os.getenv('EMAIL_PASS')
 # Функция за изпращане на SMS чрез Twilio
 
 def send_sms_via_twilio(to_number, message_body):
-    account_sid = os.getenv('TWILIO_SID')
-    auth_token = os.getenv('TWILIO_AUTH')
-    from_number = os.getenv('TWILIO_FROM')
+    TWILIO_SID = os.getenv('TWILIO_SID')
+    TWILIO_AUTH = os.getenv('TWILIO_AUTH')
+    TWILIO_FROM = os.getenv('TWILIO_FROM')
 
     url = f'https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json'
 
